@@ -1,8 +1,9 @@
-name: Sync Zengin Source Data
+# .github/workflows/conditional-sync.yml
+name: Conditional Sync Zengin Data
 
 on:
   schedule:
-    - cron: '0 3 * * 0'
+    - cron:  '0 1 * * *'   # 毎日 1:00 に実行
   workflow_dispatch:
 
 permissions:
@@ -13,28 +14,59 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. ミラーレポジトリのチェックアウト
       - name: Checkout mirror repo
         uses: actions/checkout@v3
-        with:
-          path: mirror
 
-      - name: Checkout source repo
-        uses: actions/checkout@v3
-        with:
-          repository: zengin-code/source-data
-          path: source
-
-      - name: Copy data
+      # 2. リモートの updated_at だけを取得
+      - name: Fetch remote updated_at
         run: |
-          rm -rf mirror/data
-          mkdir -p mirror/data
-          cp -r source/data/* mirror/data/
+          curl -sSL \
+            https://raw.githubusercontent.com/zengin-code/source-data/master/data/updated_at \
+            -o remote_updated_at
 
-      - name: Commit and push
+      # 3. ローカルの updated_at を読み込み（未作成時は初回扱い）
+      - name: Read local updated_at
         run: |
-          cd mirror
-          git config user.name "github-actions[bot]"
+          if [ -f data/updated_at ]; then
+            cp data/updated_at local_updated_at
+          else
+            echo "1970-01-01T00:00:00Z" > local_updated_at
+          fi
+
+      # 4. 比較して同期要否を判定
+      - name: Decide whether to sync
+        id: decide
+        run: |
+          if cmp -s remote_updated_at local_updated_at; then
+            echo "should_sync=false" >> $GITHUB_OUTPUT
+          else
+            echo "should_sync=true"  >> $GITHUB_OUTPUT
+          fi
+
+      # 5. 差分があれば同期処理
+      - name: Sync data
+        if: steps.decide.outputs.should_sync == 'true'
+        run: |
+          echo "🟢 Detected update ( $(
+            cat remote_updated_at
+          ) ), syncing full data..."
+          # ソースを浅クローンして data 配下を上書き
+          git clone --depth 1 \
+            https://github.com/zengin-code/source-data.git tmp-src
+          rm -rf data
+          mv tmp-src/data ./data
+          rm -rf tmp-src
+          # 更新日時もコピー
+          cp data/updated_at data/updated_at
+          cd .
+          git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/
-          git commit -m "sync: update zengin data" || echo "No changes to commit"
+          git add data
+          git commit -m "sync: updated to $(cat data/updated_at)"
           git push
+
+      # 6. 差分なければスキップ
+      - name: Skip sync
+        if: steps.decide.outputs.should_sync == 'false'
+        run: echo "🟡 No update since $(cat local_updated_at). Skipping."
