@@ -2,8 +2,11 @@ name: Sync Zengin Source Data
 
 on:
   schedule:
-    - cron: '0 3 * * 0'  # 毎週日曜 午前3時に実行
-  workflow_dispatch:      # 手動でも実行可能
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   sync:
