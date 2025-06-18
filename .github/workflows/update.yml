@@ -17,6 +17,8 @@ jobs:
       # 1. ミラーレポジトリのチェックアウト
       - name: Checkout mirror repo
         uses: actions/checkout@v3
+        with:
+          persist-credentials: true
 
       # 2. リモートの updated_at だけを取得
       - name: Fetch remote updated_at
@@ -57,9 +59,6 @@ jobs:
           rm -rf data
           mv tmp-src/data ./data
           rm -rf tmp-src
-          # 更新日時もコピー
-          cp data/updated_at data/updated_at
-          cd .
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data
