@@ -10,24 +10,23 @@ permissions:
   contents: write
 
 jobs:
-  sync:
+  # ジョブ①：更新要否チェック
+  check:
     runs-on: ubuntu-latest
-
+    outputs:
+      should_sync: ${{ steps.decide.outputs.should_sync }}
     steps:
-      # 1. ミラーレポジトリのチェックアウト
       - name: Checkout mirror repo
         uses: actions/checkout@v3
         with:
           persist-credentials: true
 
-      # 2. リモートの updated_at だけを取得
       - name: Fetch remote updated_at
         run: |
           curl -sSL \
             https://raw.githubusercontent.com/zengin-code/source-data/master/data/updated_at \
             -o remote_updated_at
 
-      # 3. ローカルの updated_at を読み込み（未作成時は初回扱い）
       - name: Read local updated_at
         run: |
           if [ -f data/updated_at ]; then
@@ -36,7 +35,6 @@ jobs:
             echo "1970-01-01T00:00:00Z" > local_updated_at
           fi
 
-      # 4. 比較して同期要否を判定
       - name: Decide whether to sync
         id: decide
         run: |
@@ -46,14 +44,20 @@ jobs:
             echo "should_sync=true"  >> $GITHUB_OUTPUT
           fi
 
-      # 5. 差分があれば同期処理
+  # ジョブ②：同期実行（更新が必要な場合のみ）
+  sync:
+    needs: check
+    if: needs.check.outputs.should_sync == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout mirror repo
+        uses: actions/checkout@v3
+        with:
+          persist-credentials: true
+
       - name: Sync data
-        if: steps.decide.outputs.should_sync == 'true'
         run: |
-          echo "🟢 Detected update ( $(
-            cat remote_updated_at
-          ) ), syncing full data..."
-          # ソースを浅クローンして data 配下を上書き
+          echo "🟢 Detected update ($(cat remote_updated_at)), syncing full data..."
           git clone --depth 1 \
             https://github.com/zengin-code/source-data.git tmp-src
           rm -rf data
@@ -65,7 +69,11 @@ jobs:
           git commit -m "sync: updated to $(cat data/updated_at)"
           git push
 
-      # 6. 差分なければスキップ
+  # ジョブ③：スキップ（更新不要な場合のみ）
+  skip:
+    needs: check
+    if: needs.check.outputs.should_sync == 'false'
+    runs-on: ubuntu-latest
+    steps:
       - name: Skip sync
-        if: steps.decide.outputs.should_sync == 'false'
         run: echo "🟡 No update since $(cat local_updated_at). Skipping."
