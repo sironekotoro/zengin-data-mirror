@@ -10,14 +10,11 @@ permissions:
   contents: write
 
 jobs:
-  # ジョブ①：更新要否チェック
-  check:
+  sync:
     runs-on: ubuntu-latest
-    outputs:
-      should_sync: ${{ steps.decide.outputs.should_sync }}
     steps:
       - name: Checkout mirror repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           persist-credentials: true
 
@@ -35,45 +32,20 @@ jobs:
             echo "1970-01-01T00:00:00Z" > local_updated_at
           fi
 
-      - name: Decide whether to sync
-        id: decide
+      - name: Sync data when updated
         run: |
           if cmp -s remote_updated_at local_updated_at; then
-            echo "should_sync=false" >> $GITHUB_OUTPUT
+            echo "No update since $(cat local_updated_at). Skipping."
           else
-            echo "should_sync=true"  >> $GITHUB_OUTPUT
+            echo "Detected update $(cat remote_updated_at), syncing full data..."
+            git clone --depth 1 \
+              https://github.com/zengin-code/source-data.git tmp-src
+            rm -rf data
+            mv tmp-src/data ./data
+            rm -rf tmp-src
+            git config user.name  "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add data
+            git commit -m "sync: updated to $(cat data/updated_at)"
+            git push
           fi
-
-  # ジョブ②：同期実行（更新が必要な場合のみ）
-  sync:
-    needs: check
-    if: needs.check.outputs.should_sync == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout mirror repo
-        uses: actions/checkout@v3
-        with:
-          persist-credentials: true
-
-      - name: Sync data
-        run: |
-          echo "🟢 Detected update ($(cat remote_updated_at)), syncing full data..."
-          git clone --depth 1 \
-            https://github.com/zengin-code/source-data.git tmp-src
-          rm -rf data
-          mv tmp-src/data ./data
-          rm -rf tmp-src
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data
-          git commit -m "sync: updated to $(cat data/updated_at)"
-          git push
-
-  # ジョブ③：スキップ（更新不要な場合のみ）
-  skip:
-    needs: check
-    if: needs.check.outputs.should_sync == 'false'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Skip sync
-        run: echo "🟡 No update since $(cat local_updated_at). Skipping."
