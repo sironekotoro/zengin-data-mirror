@@ -5,6 +5,12 @@ on:
   schedule:
     - cron: '0 16 * * *'   # 毎日16:00 UTC → 翌日 1:00 JST
   workflow_dispatch:
+    inputs:
+      send_test_mail:
+        description: Send a test email even when no data update is found
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -14,6 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       updated: ${{ steps.check_update.outputs.updated }}
+      send_test_mail: ${{ steps.notify_mode.outputs.send_test_mail }}
       previous_updated_at: ${{ steps.check_update.outputs.previous_updated_at }}
       current_updated_at: ${{ steps.check_update.outputs.current_updated_at }}
       commit_sha: ${{ steps.sync_data.outputs.commit_sha }}
@@ -51,6 +58,13 @@ jobs:
           echo "previous_updated_at=$(cat local_updated_at)" >> "$GITHUB_OUTPUT"
           echo "current_updated_at=$(cat remote_updated_at)" >> "$GITHUB_OUTPUT"
 
+      - name: Determine notification mode
+        id: notify_mode
+        env:
+          SEND_TEST_MAIL: ${{ github.event_name == 'workflow_dispatch' && inputs.send_test_mail || false }}
+        run: |
+          echo "send_test_mail=${SEND_TEST_MAIL}" >> "$GITHUB_OUTPUT"
+
       - name: Sync data when updated
         id: sync_data
         if: steps.check_update.outputs.updated == 'true'
@@ -70,11 +84,11 @@ jobs:
 
   notify:
     needs: sync
-    if: needs.sync.outputs.updated == 'true'
+    if: needs.sync.outputs.updated == 'true' || needs.sync.outputs.send_test_mail == 'true'
     uses: ./.github/workflows/send-update-mail.yml
     with:
-      subject: zengin-data-mirror updated to ${{ needs.sync.outputs.current_updated_at }}
-      summary: zengin-data-mirror was updated successfully.
+      subject: ${{ needs.sync.outputs.updated == 'true' && format('zengin-data-mirror updated to {0}', needs.sync.outputs.current_updated_at) || 'zengin-data-mirror test notification' }}
+      summary: ${{ needs.sync.outputs.updated == 'true' && 'zengin-data-mirror was updated successfully.' || 'This is a manual test notification from zengin-data-mirror.' }}
       previous_updated_at: ${{ needs.sync.outputs.previous_updated_at }}
       current_updated_at: ${{ needs.sync.outputs.current_updated_at }}
       commit_sha: ${{ needs.sync.outputs.commit_sha }}
