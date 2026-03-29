@@ -43,6 +43,31 @@ jobs:
     env:
       MAIL_ENABLED: ${{ secrets.MAIL_ENABLED }}
     steps:
+      - name: Build mail body
+        id: build_body
+        shell: bash
+        run: |
+          {
+            printf '%s\n\n' "${{ inputs.summary }}"
+            printf 'Repository: %s\n' "${{ github.repository }}"
+            printf 'Workflow: %s\n' "${{ github.workflow }}"
+            printf 'Run: %s/%s/actions/runs/%s\n' "${{ github.server_url }}" "${{ github.repository }}" "${{ github.run_id }}"
+            printf 'Previous updated_at: %s\n' "${{ inputs.previous_updated_at }}"
+            printf 'Current updated_at: %s\n' "${{ inputs.current_updated_at }}"
+
+            if [ -n "${{ inputs.commit_sha }}" ]; then
+              printf 'Commit: %s/%s/commit/%s\n' "${{ github.server_url }}" "${{ github.repository }}" "${{ inputs.commit_sha }}"
+            else
+              printf 'Commit: not applicable for test notification\n'
+            fi
+          } > mail-body.txt
+
+          {
+            echo "body<<__MAIL_BODY__"
+            cat mail-body.txt
+            echo "__MAIL_BODY__"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Send notification mail
         if: env.MAIL_ENABLED == 'true'
         uses: dawidd6/action-send-mail@v6
@@ -54,12 +79,4 @@ jobs:
           subject: ${{ inputs.subject }}
           to: ${{ secrets.MAIL_TO }}
           from: ${{ secrets.MAIL_FROM }}
-          body: |
-            ${{ inputs.summary }}
-
-            Repository: ${{ github.repository }}
-            Workflow: ${{ github.workflow }}
-            Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-            Previous updated_at: ${{ inputs.previous_updated_at }}
-            Current updated_at: ${{ inputs.current_updated_at }}
-            Commit: ${{ github.server_url }}/${{ github.repository }}/commit/${{ inputs.commit_sha }}
+          body: ${{ steps.build_body.outputs.body }}
