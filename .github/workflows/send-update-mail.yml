@@ -39,10 +39,12 @@ on:
 
 jobs:
   send:
-    if: secrets.MAIL_ENABLED == 'true'
     runs-on: ubuntu-latest
+    env:
+      MAIL_ENABLED: ${{ secrets.MAIL_ENABLED }}
     steps:
       - name: Send notification mail
+        if: env.MAIL_ENABLED == 'true'
         uses: dawidd6/action-send-mail@v6
         with:
           server_address: ${{ secrets.SMTP_SERVER }}
