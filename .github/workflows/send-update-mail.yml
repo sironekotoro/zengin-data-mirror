@@ -1,0 +1,65 @@
+name: Send Update Mail
+
+on:
+  workflow_call:
+    inputs:
+      enabled:
+        required: false
+        type: boolean
+        default: true
+      subject:
+        required: true
+        type: string
+      summary:
+        required: true
+        type: string
+      previous_updated_at:
+        required: false
+        type: string
+        default: ""
+      current_updated_at:
+        required: false
+        type: string
+        default: ""
+      commit_sha:
+        required: false
+        type: string
+        default: ""
+    secrets:
+      SMTP_SERVER:
+        required: true
+      SMTP_PORT:
+        required: true
+      SMTP_USERNAME:
+        required: true
+      SMTP_PASSWORD:
+        required: true
+      MAIL_TO:
+        required: true
+      MAIL_FROM:
+        required: true
+
+jobs:
+  send:
+    if: inputs.enabled
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send notification mail
+        uses: dawidd6/action-send-mail@v6
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: ${{ inputs.subject }}
+          to: ${{ secrets.MAIL_TO }}
+          from: ${{ secrets.MAIL_FROM }}
+          body: |
+            ${{ inputs.summary }}
+
+            Repository: ${{ github.repository }}
+            Workflow: ${{ github.workflow }}
+            Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            Previous updated_at: ${{ inputs.previous_updated_at }}
+            Current updated_at: ${{ inputs.current_updated_at }}
+            Commit: ${{ github.server_url }}/${{ github.repository }}/commit/${{ inputs.commit_sha }}

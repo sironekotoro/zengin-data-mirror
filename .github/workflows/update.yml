@@ -12,6 +12,11 @@ permissions:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    outputs:
+      updated: ${{ steps.check_update.outputs.updated }}
+      previous_updated_at: ${{ steps.check_update.outputs.previous_updated_at }}
+      current_updated_at: ${{ steps.check_update.outputs.current_updated_at }}
+      commit_sha: ${{ steps.sync_data.outputs.commit_sha }}
     steps:
       - name: Checkout mirror repo
         uses: actions/checkout@v4
@@ -32,20 +37,52 @@ jobs:
             echo "1970-01-01T00:00:00Z" > local_updated_at
           fi
 
-      - name: Sync data when updated
+      - name: Check whether update exists
+        id: check_update
         run: |
           if cmp -s remote_updated_at local_updated_at; then
             echo "No update since $(cat local_updated_at). Skipping."
+            echo "updated=false" >> "$GITHUB_OUTPUT"
           else
-            echo "Detected update $(cat remote_updated_at), syncing full data..."
-            git clone --depth 1 \
-              https://github.com/zengin-code/source-data.git tmp-src
-            rm -rf data
-            mv tmp-src/data ./data
-            rm -rf tmp-src
-            git config user.name  "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add data
-            git commit -m "sync: updated to $(cat data/updated_at)"
-            git push
+            echo "Detected update $(cat remote_updated_at)."
+            echo "updated=true" >> "$GITHUB_OUTPUT"
           fi
+
+          echo "previous_updated_at=$(cat local_updated_at)" >> "$GITHUB_OUTPUT"
+          echo "current_updated_at=$(cat remote_updated_at)" >> "$GITHUB_OUTPUT"
+
+      - name: Sync data when updated
+        id: sync_data
+        if: steps.check_update.outputs.updated == 'true'
+        run: |
+          echo "Syncing full data to $(cat remote_updated_at)..."
+          git clone --depth 1 \
+            https://github.com/zengin-code/source-data.git tmp-src
+          rm -rf data
+          mv tmp-src/data ./data
+          rm -rf tmp-src
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data
+          git commit -m "sync: updated to $(cat data/updated_at)"
+          echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          git push
+
+  notify:
+    needs: sync
+    if: needs.sync.outputs.updated == 'true'
+    uses: ./.github/workflows/send-update-mail.yml
+    with:
+      enabled: ${{ secrets.MAIL_ENABLED == 'true' }}
+      subject: zengin-data-mirror updated to ${{ needs.sync.outputs.current_updated_at }}
+      summary: zengin-data-mirror was updated successfully.
+      previous_updated_at: ${{ needs.sync.outputs.previous_updated_at }}
+      current_updated_at: ${{ needs.sync.outputs.current_updated_at }}
+      commit_sha: ${{ needs.sync.outputs.commit_sha }}
+    secrets:
+      SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT }}
+      SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      MAIL_TO: ${{ secrets.MAIL_TO }}
+      MAIL_FROM: ${{ secrets.MAIL_FROM }}
