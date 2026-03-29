@@ -73,7 +73,6 @@ jobs:
     if: needs.sync.outputs.updated == 'true'
     uses: ./.github/workflows/send-update-mail.yml
     with:
-      enabled: ${{ secrets.MAIL_ENABLED == 'true' }}
       subject: zengin-data-mirror updated to ${{ needs.sync.outputs.current_updated_at }}
       summary: zengin-data-mirror was updated successfully.
       previous_updated_at: ${{ needs.sync.outputs.previous_updated_at }}
@@ -86,3 +85,4 @@ jobs:
       SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
       MAIL_TO: ${{ secrets.MAIL_TO }}
       MAIL_FROM: ${{ secrets.MAIL_FROM }}
+      MAIL_ENABLED: ${{ secrets.MAIL_ENABLED }}

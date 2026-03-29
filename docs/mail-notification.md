@@ -14,7 +14,6 @@ notify:
   if: needs.sync.outputs.updated == 'true'
   uses: ./.github/workflows/send-update-mail.yml
   with:
-    enabled: ${{ secrets.MAIL_ENABLED == 'true' }}
     subject: my-repo updated to ${{ needs.sync.outputs.current_updated_at }}
     summary: my-repo was updated successfully.
     previous_updated_at: ${{ needs.sync.outputs.previous_updated_at }}
@@ -27,6 +26,7 @@ notify:
     SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
     MAIL_TO: ${{ secrets.MAIL_TO }}
     MAIL_FROM: ${{ secrets.MAIL_FROM }}
+    MAIL_ENABLED: ${{ secrets.MAIL_ENABLED }}
 ```
 
 `needs.sync.outputs.*` は、通知元の job で `outputs:` に出しておきます。
@@ -91,7 +91,6 @@ notify:
   if: needs.sync.outputs.updated == 'true'
   uses: sironekotoro/zengin-data-mirror/.github/workflows/send-update-mail.yml@main
   with:
-    enabled: ${{ secrets.MAIL_ENABLED == 'true' }}
     subject: other-repo updated to ${{ needs.sync.outputs.current_updated_at }}
     summary: other-repo was updated successfully.
     previous_updated_at: ${{ needs.sync.outputs.previous_updated_at }}
@@ -104,6 +103,7 @@ notify:
     SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
     MAIL_TO: ${{ secrets.MAIL_TO }}
     MAIL_FROM: ${{ secrets.MAIL_FROM }}
+    MAIL_ENABLED: ${{ secrets.MAIL_ENABLED }}
 ```
 
 別リポジトリから使う場合も、secret の実体は呼び出し元リポジトリまたは Organization 側に置きます。

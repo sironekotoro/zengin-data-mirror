@@ -3,10 +3,6 @@ name: Send Update Mail
 on:
   workflow_call:
     inputs:
-      enabled:
-        required: false
-        type: boolean
-        default: true
       subject:
         required: true
         type: string
@@ -38,10 +34,12 @@ on:
         required: true
       MAIL_FROM:
         required: true
+      MAIL_ENABLED:
+        required: false
 
 jobs:
   send:
-    if: inputs.enabled
+    if: secrets.MAIL_ENABLED == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Send notification mail
