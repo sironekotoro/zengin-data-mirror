@@ -72,8 +72,14 @@ jobs:
           echo "Syncing full data to $(cat remote_updated_at)..."
           git clone --depth 1 \
             https://github.com/zengin-code/source-data.git tmp-src
+          UPSTREAM_REVISION="$(git -C tmp-src rev-parse HEAD)"
+          case "$UPSTREAM_REVISION" in
+            [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;
+            *) echo "Invalid upstream revision: $UPSTREAM_REVISION" >&2; exit 1 ;;
+          esac
           rm -rf data
           mv tmp-src/data ./data
+          printf '%s\n' "$UPSTREAM_REVISION" > data/revision
           rm -rf tmp-src
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
