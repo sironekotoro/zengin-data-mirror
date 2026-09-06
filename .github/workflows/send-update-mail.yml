@@ -37,6 +37,13 @@ on:
       MAIL_ENABLED:
         required: false
 
+# 呼び出し元(update.yml)はgit push用にcontents:writeを持つが、この
+# workflowはSMTPメール送信のみでgit/GitHub APIへの書き込みは行わない。
+# reusable workflow自身により狭いpermissionsを明示し、呼び出し元の
+# 権限をそのまま引き継がないようにする。
+permissions:
+  contents: read
+
 jobs:
   send:
     runs-on: ubuntu-latest
